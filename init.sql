@@ -18,4 +18,15 @@ CREATE TABLE history (
     action TEXT CHECK(action IN ('emprunt', 'retour')),
     date TEXT NOT NULL
 );
+
+INSERT INTO books (title, quantity) VALUES
+('Java pour débutant', 3),
+('Algorithme des Graphes', 5),
+('Cyber-sécurité M2', 2),
+('Git', 4);
+('Complexité', 3),
+('Finance pour les nuls', 5),
+('C vs C++', 2),
+('Atelier de programation', 4);
+
 INSERT INTO users (login, password) VALUES ('admin', 'admin');
