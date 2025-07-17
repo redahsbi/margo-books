@@ -1,0 +1,20 @@
+-- init.sql : structure de la base
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    login TEXT NOT NULL UNIQUE,
+    password TEXT NOT NULL
+);
+
+CREATE TABLE books (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    quantity INTEGER NOT NULL
+);
+
+CREATE TABLE history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user TEXT NOT NULL,
+    book_id INTEGER NOT NULL,
+    action TEXT CHECK(action IN ('emprunt', 'retour')),
+    date TEXT NOT NULL
+);
