@@ -68,6 +68,8 @@ $history = $db->query("
 </head>
 <body>
     <h2>Bienvenue, <?= htmlspecialchars($_SESSION["user"]) ?> !</h2>
+    <p><a href="logout.php" style="color:red;">🔓 Se déconnecter</a></p>
+
 
     <?php if (!empty($message)): ?>
         <p style="color: <?= str_starts_with($message, '❌') ? 'red' : 'green' ?>;">
