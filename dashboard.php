@@ -10,7 +10,8 @@ $db = new PDO("sqlite:database.sqlite");
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 // Liste des livres
-$books = $db->query("SELECT * FROM books")->fetchAll();
+$books = $db->query("SELECT * FROM books ORDER BY title ASC")->fetchAll();
+
 
 $message = ""; // Message à afficher à l'utilisateur
 
@@ -24,9 +25,17 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $new_quantity = (int) $_POST["new_quantity"];
 
         if ($new_title !== "" && $new_quantity > 0) {
-            $stmt = $db->prepare("INSERT INTO books (title, quantity) VALUES (?, ?)");
-            $stmt->execute([$new_title, $new_quantity]);
-            $message = "✅ Livre ajouté : " . htmlspecialchars($new_title);
+           $stmt = $db->prepare("INSERT INTO books (title, quantity) VALUES (?, ?)");
+$stmt->execute([$new_title, $new_quantity]);
+
+$book_id = $db->lastInsertId(); // Récupérer l'ID du livre ajouté
+
+$db->prepare("INSERT INTO history (user, book_id, action, date) VALUES (?, ?, 'ajout', ?)")->execute([
+    $user, $book_id, date("Y-m-d")
+]);
+
+$message = "✅ Livre ajouté : " . htmlspecialchars($new_title);
+
         } else {
             $message = "❌ Titre ou quantité invalide.";
         }
@@ -93,10 +102,57 @@ $history = $db->query("
     <?php endif; ?>
 
     <h3>📚 Livres disponibles :</h3>
-    <ul>
-        <?php foreach ($books as $book): ?>
-            <li><?= htmlspecialchars($book["title"]) ?> — Stock : <?= $book["quantity"] ?></li>
-        <?php endforeach; ?>
+
+<input type="text" id="searchBar" placeholder="Rechercher un livre..." oninput="filterBooks()" style="margin-bottom: 10px; width: 50%;"><br>
+
+<ul id="book-list">
+<?php foreach ($books as $index => $book): ?>
+    <li class="book-item" data-title="<?= strtolower($book["title"]) ?>" style="<?= $index >= 10 ? 'display:none;' : '' ?>">
+        <?= htmlspecialchars($book["title"]) ?> — Stock : <?= $book["quantity"] ?>
+    </li>
+<?php endforeach; ?>
+</ul>
+
+<?php if (count($books) > 10): ?>
+    <button onclick="toggleBooks()" id="toggleButton">📚 Afficher tout / Réduire</button>
+<?php endif; ?>
+
+<script>
+function toggleBooks() {
+    const books = document.querySelectorAll(".book-item");
+    let hiddenCount = 0;
+
+    books.forEach((b, i) => {
+        if (!b.classList.contains("filtered")) {
+            if (i >= 10) {
+                b.style.display = (b.style.display === 'none') ? '' : 'none';
+                hiddenCount++;
+            }
+        }
+    });
+
+    const btn = document.getElementById("toggleButton");
+    btn.textContent = hiddenCount > 0 ? "📚 Réduire" : "📚 Afficher tout";
+}
+
+function filterBooks() {
+    const query = document.getElementById("searchBar").value.toLowerCase();
+    const books = document.querySelectorAll(".book-item");
+
+    books.forEach((book, i) => {
+        const title = book.getAttribute("data-title");
+        if (title.includes(query)) {
+            book.style.display = "";
+            book.classList.remove("filtered");
+        } else {
+            book.style.display = "none";
+            book.classList.add("filtered");
+        }
+    });
+}
+</script>
+
+
     </ul>
 
     <h3>➕ Emprunter / 🔄 Retourner un livre :</h3>
@@ -138,22 +194,32 @@ $history = $db->query("
         <button type="submit">Ajouter le livre</button>
     </form>
 
-    <h3>🕘 50 derniers emprunts / retours :</h3>
-    <table border="1" cellpadding="5">
-        <tr>
-            <th>Utilisateur</th>
-            <th>Livre</th>
-            <th>Action</th>
-            <th>Date</th>
-        </tr>
-        <?php foreach ($history as $entry): ?>
-        <tr>
-            <td><?= htmlspecialchars($entry["user"]) ?></td>
-            <td><?= htmlspecialchars($entry["book_title"]) ?></td>
-            <td><?= htmlspecialchars($entry["action"]) ?></td>
-            <td><?= htmlspecialchars($entry["date"]) ?></td>
-        </tr>
-        <?php endforeach; ?>
-    </table>
+    <h3>🕘 50 dernières actions :</h3>
+<table border="1" cellpadding="5">
+    <tr>
+        <th>Utilisateur</th>
+        <th>Livre</th>
+        <th>Action</th>
+        <th>Date</th>
+    </tr>
+    <?php foreach ($history as $entry): ?>
+    <tr>
+        <td><?= htmlspecialchars($entry["user"]) ?></td>
+        <td><?= htmlspecialchars($entry["book_title"]) ?></td>
+        <td>
+            <?php
+                switch ($entry["action"]) {
+                    case 'emprunt': echo "📕 Emprunt"; break;
+                    case 'retour': echo "📗 Retour"; break;
+                    case 'ajout': echo "📘 Ajout"; break;
+                    default: echo htmlspecialchars($entry["action"]);
+                }
+            ?>
+        </td>
+        <td><?= htmlspecialchars($entry["date"]) ?></td>
+    </tr>
+    <?php endforeach; ?>
+</table>
+
 </body>
 </html>
