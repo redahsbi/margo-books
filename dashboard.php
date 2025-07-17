@@ -9,39 +9,35 @@ if (!isset($_SESSION["user"])) {
 $db = new PDO("sqlite:database.sqlite");
 $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// Liste des livres
+// Liste des livres triés
 $books = $db->query("SELECT * FROM books ORDER BY title ASC")->fetchAll();
 
+$message = ""; // Message à afficher
 
-$message = ""; // Message à afficher à l'utilisateur
-
-// Traitement des formulaires
+// Traitement du formulaire
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $user = $_SESSION["user"];
 
     if (isset($_POST["form_type"]) && $_POST["form_type"] === "add_book") {
-        // Ajouter un nouveau livre
         $new_title = trim($_POST["new_title"]);
         $new_quantity = (int) $_POST["new_quantity"];
 
         if ($new_title !== "" && $new_quantity > 0) {
-           $stmt = $db->prepare("INSERT INTO books (title, quantity) VALUES (?, ?)");
-$stmt->execute([$new_title, $new_quantity]);
+            $stmt = $db->prepare("INSERT INTO books (title, quantity) VALUES (?, ?)");
+            $stmt->execute([$new_title, $new_quantity]);
 
-$book_id = $db->lastInsertId(); // Récupérer l'ID du livre ajouté
+            $book_id = $db->lastInsertId();
+            $db->prepare("INSERT INTO history (user, book_id, action, date) VALUES (?, ?, 'ajout', ?)")
+                ->execute([$user, $book_id, date("Y-m-d")]);
 
-$db->prepare("INSERT INTO history (user, book_id, action, date) VALUES (?, ?, 'ajout', ?)")->execute([
-    $user, $book_id, date("Y-m-d")
-]);
-
-$message = "✅ Livre ajouté : " . htmlspecialchars($new_title);
-
+            // Recharge la page pour trier les livres
+            header("Location: dashboard.php");
+            exit();
         } else {
             $message = "❌ Titre ou quantité invalide.";
         }
-
     } else {
-        // Emprunt / retour
+        // Emprunt / Retour
         $book_id = $_POST["book_id"];
         $action = $_POST["action"];
         $date = $_POST["date"];
@@ -67,14 +63,14 @@ $message = "✅ Livre ajouté : " . htmlspecialchars($new_title);
                 $db->prepare("INSERT INTO history (user, book_id, action, date) VALUES (?, ?, 'retour', ?)")->execute([$user, $book_id, $date]);
                 $message = "🔁 Livre retourné : " . htmlspecialchars($title);
             }
+
+            // Rafraîchir la liste triée
+            $books = $db->query("SELECT * FROM books ORDER BY title ASC")->fetchAll();
         }
     }
-
-    // Rafraîchir la liste des livres (ordre alphabétique)
-    $books = $db->query("SELECT * FROM books ORDER BY title ASC")->fetchAll();
 }
 
-// Historique des 50 derniers mouvements
+// Historique des 50 dernières actions
 $history = $db->query("
     SELECT h.user, b.title AS book_title, h.action, h.date
     FROM history h
@@ -92,16 +88,16 @@ $history = $db->query("
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <h2>Bienvenue, <?= htmlspecialchars($_SESSION["user"]) ?> !</h2>
-    <p><a href="logout.php" style="color:red;">🔓 Se déconnecter</a></p>
+<h2>Bienvenue, <?= htmlspecialchars($_SESSION["user"]) ?> !</h2>
+<p><a href="logout.php" style="color:red;">🔓 Se déconnecter</a></p>
 
-    <?php if (!empty($message)): ?>
-        <p style="color: <?= str_starts_with($message, '❌') ? 'red' : 'green' ?>;">
-            <?= $message ?>
-        </p>
-    <?php endif; ?>
+<?php if (!empty($message)): ?>
+    <p style="color: <?= str_starts_with($message, '❌') ? 'red' : 'green' ?>;">
+        <?= $message ?>
+    </p>
+<?php endif; ?>
 
-    <h3>📚 Livres disponibles :</h3>
+<h3>📚 Livres disponibles :</h3>
 
 <input type="text" id="searchBar" placeholder="Rechercher un livre..." oninput="filterBooks()" style="margin-bottom: 10px; width: 50%;"><br>
 
@@ -121,7 +117,6 @@ $history = $db->query("
 function toggleBooks() {
     const books = document.querySelectorAll(".book-item");
     let hiddenCount = 0;
-
     books.forEach((b, i) => {
         if (!b.classList.contains("filtered")) {
             if (i >= 10) {
@@ -130,7 +125,6 @@ function toggleBooks() {
             }
         }
     });
-
     const btn = document.getElementById("toggleButton");
     btn.textContent = hiddenCount > 0 ? "📚 Réduire" : "📚 Afficher tout";
 }
@@ -152,49 +146,46 @@ function filterBooks() {
 }
 </script>
 
+<h3>➕ Emprunter / 🔄 Retourner un livre :</h3>
+<form method="POST">
+    <input type="hidden" name="form_type" value="borrow_return">
+    <label>Livre :
+        <select name="book_id" required>
+            <?php foreach ($books as $book): ?>
+                <option value="<?= $book["id"] ?>"><?= htmlspecialchars($book["title"]) ?></option>
+            <?php endforeach; ?>
+        </select>
+    </label><br><br>
 
-    </ul>
+    <label>Action :
+        <select name="action" required>
+            <option value="emprunt">Emprunter</option>
+            <option value="retour">Retourner</option>
+        </select>
+    </label><br><br>
 
-    <h3>➕ Emprunter / 🔄 Retourner un livre :</h3>
-    <form method="POST">
-        <input type="hidden" name="form_type" value="borrow_return">
-        <label>Livre :
-            <select name="book_id" required>
-                <?php foreach ($books as $book): ?>
-                    <option value="<?= $book["id"] ?>"><?= htmlspecialchars($book["title"]) ?></option>
-                <?php endforeach; ?>
-            </select>
-        </label><br><br>
+    <label>Date :
+        <input type="date" name="date" required>
+    </label><br><br>
 
-        <label>Action :
-            <select name="action" required>
-                <option value="emprunt">Emprunter</option>
-                <option value="retour">Retourner</option>
-            </select>
-        </label><br><br>
+    <button type="submit">Valider</button>
+</form>
 
-        <label>Date :
-            <input type="date" name="date" required>
-        </label><br><br>
+<h3>📘 Ajouter un nouveau livre :</h3>
+<form method="POST">
+    <input type="hidden" name="form_type" value="add_book">
+    <label>Titre :
+        <input type="text" name="new_title" required>
+    </label><br><br>
 
-        <button type="submit">Valider</button>
-    </form>
+    <label>Quantité :
+        <input type="number" name="new_quantity" min="1" required>
+    </label><br><br>
 
-    <h3>📘 Ajouter un nouveau livre :</h3>
-    <form method="POST">
-        <input type="hidden" name="form_type" value="add_book">
-        <label>Titre :
-            <input type="text" name="new_title" required>
-        </label><br><br>
+    <button type="submit">Ajouter le livre</button>
+</form>
 
-        <label>Quantité :
-            <input type="number" name="new_quantity" min="1" required>
-        </label><br><br>
-
-        <button type="submit">Ajouter le livre</button>
-    </form>
-
-    <h3>🕘 50 dernières actions :</h3>
+<h3>🕘 50 dernières actions :</h3>
 <table border="1" cellpadding="5">
     <tr>
         <th>Utilisateur</th>
