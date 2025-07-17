@@ -18,3 +18,4 @@ CREATE TABLE history (
     action TEXT CHECK(action IN ('emprunt', 'retour')),
     date TEXT NOT NULL
 );
+INSERT INTO users (login, password) VALUES ('admin', 'admin');
