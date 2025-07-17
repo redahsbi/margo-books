@@ -12,7 +12,7 @@ $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 // Liste des livres
 $books = $db->query("SELECT * FROM books")->fetchAll();
 
-$message = ""; // message de confirmation ou d'erreur
+$message = ""; // Message à afficher à l'utilisateur
 
 // Traitement du formulaire
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
@@ -21,7 +21,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $date = $_POST["date"];
     $user = $_SESSION["user"];
 
-    // Récupération de la quantité actuelle
+    // Récupérer quantité actuelle
     $stmt = $db->prepare("SELECT title, quantity FROM books WHERE id = ?");
     $stmt->execute([$book_id]);
     $book = $stmt->fetch();
@@ -32,24 +32,31 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         if ($action === "emprunt") {
             if ($quantity > 0) {
-                // Diminuer la quantité
                 $db->prepare("UPDATE books SET quantity = quantity - 1 WHERE id = ?")->execute([$book_id]);
                 $db->prepare("INSERT INTO history (user, book_id, action, date) VALUES (?, ?, 'emprunt', ?)")->execute([$user, $book_id, $date]);
-                $message = "✅ Vous avez emprunté : " . htmlspecialchars($title);
+                $message = "✅ Livre emprunté : " . htmlspecialchars($title);
             } else {
                 $message = "❌ Le livre \"" . htmlspecialchars($title) . "\" n’est plus disponible.";
             }
         } elseif ($action === "retour") {
-            // Augmenter la quantité
             $db->prepare("UPDATE books SET quantity = quantity + 1 WHERE id = ?")->execute([$book_id]);
             $db->prepare("INSERT INTO history (user, book_id, action, date) VALUES (?, ?, 'retour', ?)")->execute([$user, $book_id, $date]);
             $message = "🔁 Livre retourné : " . htmlspecialchars($title);
         }
 
-        // Recharge les stocks après modification
+        // Rafraîchir la liste des livres
         $books = $db->query("SELECT * FROM books")->fetchAll();
     }
 }
+
+// Récupérer les 50 dernières actions
+$history = $db->query("
+    SELECT h.user, b.title AS book_title, h.action, h.date
+    FROM history h
+    JOIN books b ON h.book_id = b.id
+    ORDER BY h.id DESC
+    LIMIT 50
+")->fetchAll();
 ?>
 
 <!DOCTYPE html>
@@ -68,14 +75,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         </p>
     <?php endif; ?>
 
-    <h3>Livres disponibles :</h3>
+    <h3>📚 Livres disponibles :</h3>
     <ul>
         <?php foreach ($books as $book): ?>
             <li><?= htmlspecialchars($book["title"]) ?> — Stock : <?= $book["quantity"] ?></li>
         <?php endforeach; ?>
     </ul>
 
-    <h3>Emprunter / Retourner un livre :</h3>
+    <h3>➕ Emprunter / 🔄 Retourner un livre :</h3>
     <form method="POST">
         <label>Livre :
             <select name="book_id" required>
@@ -98,5 +105,23 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
         <button type="submit">Valider</button>
     </form>
+
+    <h3>🕘 50 derniers emprunts / retours :</h3>
+    <table border="1" cellpadding="5">
+        <tr>
+            <th>Utilisateur</th>
+            <th>Livre</th>
+            <th>Action</th>
+            <th>Date</th>
+        </tr>
+        <?php foreach ($history as $entry): ?>
+        <tr>
+            <td><?= htmlspecialchars($entry["user"]) ?></td>
+            <td><?= htmlspecialchars($entry["book_title"]) ?></td>
+            <td><?= htmlspecialchars($entry["action"]) ?></td>
+            <td><?= htmlspecialchars($entry["date"]) ?></td>
+        </tr>
+        <?php endforeach; ?>
+    </table>
 </body>
 </html>
