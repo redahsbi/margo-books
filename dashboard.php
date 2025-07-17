@@ -70,8 +70,8 @@ $message = "✅ Livre ajouté : " . htmlspecialchars($new_title);
         }
     }
 
-    // Rafraîchir la liste des livres
-    $books = $db->query("SELECT * FROM books")->fetchAll();
+    // Rafraîchir la liste des livres (ordre alphabétique)
+    $books = $db->query("SELECT * FROM books ORDER BY title ASC")->fetchAll();
 }
 
 // Historique des 50 derniers mouvements
