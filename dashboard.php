@@ -12,6 +12,8 @@ $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 // Liste des livres
 $books = $db->query("SELECT * FROM books")->fetchAll();
 
+$message = ""; // message de confirmation ou d'erreur
+
 // Traitement du formulaire
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $book_id = $_POST["book_id"];
@@ -20,27 +22,33 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $user = $_SESSION["user"];
 
     // Récupération de la quantité actuelle
-    $stmt = $db->prepare("SELECT quantity FROM books WHERE id = ?");
+    $stmt = $db->prepare("SELECT title, quantity FROM books WHERE id = ?");
     $stmt->execute([$book_id]);
     $book = $stmt->fetch();
 
     if ($book) {
         $quantity = $book["quantity"];
+        $title = $book["title"];
 
-        if ($action === "emprunt" && $quantity > 0) {
-            // Diminuer la quantité
-            $db->prepare("UPDATE books SET quantity = quantity - 1 WHERE id = ?")->execute([$book_id]);
-            $db->prepare("INSERT INTO history (user, book_id, action, date) VALUES (?, ?, 'emprunt', ?)")->execute([$user, $book_id, $date]);
+        if ($action === "emprunt") {
+            if ($quantity > 0) {
+                // Diminuer la quantité
+                $db->prepare("UPDATE books SET quantity = quantity - 1 WHERE id = ?")->execute([$book_id]);
+                $db->prepare("INSERT INTO history (user, book_id, action, date) VALUES (?, ?, 'emprunt', ?)")->execute([$user, $book_id, $date]);
+                $message = "✅ Vous avez emprunté : " . htmlspecialchars($title);
+            } else {
+                $message = "❌ Le livre \"" . htmlspecialchars($title) . "\" n’est plus disponible.";
+            }
         } elseif ($action === "retour") {
             // Augmenter la quantité
             $db->prepare("UPDATE books SET quantity = quantity + 1 WHERE id = ?")->execute([$book_id]);
             $db->prepare("INSERT INTO history (user, book_id, action, date) VALUES (?, ?, 'retour', ?)")->execute([$user, $book_id, $date]);
+            $message = "🔁 Livre retourné : " . htmlspecialchars($title);
         }
-    }
 
-    // Recharger la page pour afficher les quantités à jour
-    header("Location: dashboard.php");
-    exit();
+        // Recharge les stocks après modification
+        $books = $db->query("SELECT * FROM books")->fetchAll();
+    }
 }
 ?>
 
@@ -53,6 +61,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 </head>
 <body>
     <h2>Bienvenue, <?= htmlspecialchars($_SESSION["user"]) ?> !</h2>
+
+    <?php if (!empty($message)): ?>
+        <p style="color: <?= str_starts_with($message, '❌') ? 'red' : 'green' ?>;">
+            <?= $message ?>
+        </p>
+    <?php endif; ?>
 
     <h3>Livres disponibles :</h3>
     <ul>
