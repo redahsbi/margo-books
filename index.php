@@ -1,18 +1,16 @@
 <?php
 session_start();
 
-// === Remplis ici avec tes vraies infos ===
-$host = 'sql303.infinityfree.com ';       // ex : sql307.epizy.com
-$dbname = 'if0_39493991_margo ';
-$user = 'if0_39493991';
-$pass = 'tuSJ8GtBHEUqW';
-
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $login = $_POST["login"];
     $password = $_POST["password"];
 
     try {
-        $db = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $user, $pass);
+        if (!file_exists('database.sqlite')) {
+            die("Base SQLite absente.");
+        }
+
+        $db = new PDO("sqlite:database.sqlite");
         $db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
         $stmt = $db->prepare("SELECT * FROM users WHERE login = ? AND password = ?");
@@ -26,9 +24,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         } else {
             $error = "Identifiants incorrects.";
         }
-
     } catch (PDOException $e) {
-        $error = "Erreur de connexion à la base : " . $e->getMessage();
+        $error = "Erreur de connexion à SQLite : " . $e->getMessage();
     }
 }
 ?>
